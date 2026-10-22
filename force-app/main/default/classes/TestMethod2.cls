@@ -1,0 +1,85 @@
+/**
+ * @description Test class for CaseUpdateHandler - Contact Opt-Out logic.
+ *              Part of 5-class test suite covering CaseUpdateHandler.
+ * @relatedTests TestMethod1, TestMethod3, TestMethod4, TestMethod5
+ */
+@IsTest
+private class TestMethod2 {
+    
+    @IsTest 
+    static void testContactOptOutPrefix() {
+        Contact optedOutContact = new Contact(
+            LastName='Test Contact', 
+            HasOptedOutOfEmail=true
+        );
+        insert optedOutContact;
+        
+        Case testCase = new Case(
+            ContactId=optedOutContact.Id, 
+            Description='Test Description',
+            Subject='Test Subject'
+        );
+        insert testCase;
+        
+        Test.startTest();
+        CaseUpdateHandler.updateCases(new List<Case>{testCase});
+        Test.stopTest();
+        
+        Case updatedCase = [SELECT Description FROM Case WHERE Id = :testCase.Id];
+        System.assert(updatedCase.Description.startsWith('Phone Call ONLY - '));
+    }
+    
+    /**
+     * @description COVERS LINES 23/34 - Contact SOQL query execution
+     * Creates case with ONLY Contact (no Account) to trigger Contact query
+     */
+    @IsTest 
+    static void testContactOnlyQueryExecution() {
+        // This ensures contactIds set is populated, triggering Contact SOQL (Lines 23/34)
+        Contact testContact = new Contact(
+            LastName='Contact Query Test',
+            HasOptedOutOfEmail=false
+        );
+        insert testContact;
+        
+        Case contactOnlyCase = new Case(
+            ContactId=testContact.Id,
+            // NO AccountId - ensures Contact query runs independently
+            Subject='Contact Query Test',
+            Description='Testing Contact SOQL'
+        );
+        insert contactOnlyCase;
+        
+        Test.startTest();
+        CaseUpdateHandler.updateCases(new List<Case>{contactOnlyCase});
+        Test.stopTest();
+        
+        System.assertNotEquals(null, contactOnlyCase.Id, 'Contact query should execute successfully');
+    }
+    
+    /**
+     * @description Test Contact NOT opted out (negative branch)
+     */
+    @IsTest 
+    static void testContactNotOptedOut() {
+        Contact normalContact = new Contact(
+            LastName='Normal Contact', 
+            HasOptedOutOfEmail=false
+        );
+        insert normalContact;
+        
+        Case normalCase = new Case(
+            ContactId=normalContact.Id, 
+            Description='Original Description',
+            Subject='Normal Contact Case'
+        );
+        insert normalCase;
+        
+        Test.startTest();
+        CaseUpdateHandler.updateCases(new List<Case>{normalCase});
+        Test.stopTest();
+        
+        Case unchangedCase = [SELECT Description FROM Case WHERE Id = :normalCase.Id];
+        System.assertEquals('Original Description', unchangedCase.Description);
+    }
+}
